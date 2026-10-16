@@ -35,10 +35,30 @@
   ];
   const ROLE_OPTIONS = {
     Risk: { licenses: ["Basic Administration", "Risk Management"], roles: ["Risk - File Manager", "Risk - Front Line User", "Risk Manager"] },
-    Feedback: { licenses: ["Feedback Administration"], roles: ["Feedback - Front Line User", "Feedback Manager"] },
+    Feedback: { licenses: ["Feedback Administration", "Basic Administration"], roles: ["Feedback - Manager Responder: Read, Edit", "Feedback - Front Line User", "Feedback Manager"] },
     Common: { licenses: ["File Management"], roles: ["Common - File Manager"] }
   };
+  const ROLE_DESCRIPTIONS = {
+    "Risk - File Manager": "Without file delete and file close functions. They can, however, Delete their own Delete-Incomplete files.",
+    "Common - File Manager": "",
+    "Feedback - Manager Responder: Read, Edit": "No file delete and close functions",
+    "Risk - Front Line User": "",
+    "Risk Manager": "",
+    "Feedback - Front Line User": "",
+    "Feedback Manager": ""
+  };
+  const FORBIDDEN_FIELDS = ["", "None"];
   const SCOPES = ["NONE", "Front Line Users", "Department", "Facility", "Enterprise"];
+  const SCHEDULE_META = {
+    "Daily Alerts": {
+      description: "Alert set to daily recurrence.",
+      status: "Inactive",
+      lastTrigger: "06-04-2026 11:43:34",
+      firstTrigger: "06-02-2026 14:21:56",
+      timesTriggered: 7,
+      contentDistributed: 0
+    }
+  };
 
   const ICONS = [
     { group: "Patient Events", name: "ADT", desc: "Admission, discharge, transfer, or transportation.", color: "#3b82f6" },
@@ -91,7 +111,10 @@
     draft: null,
     tab: "info",
     roleDraft: null,
-    schedulePick: "",
+    roleEditIndex: null,
+    rolePick: {},
+    schedulePick: {},
+    schedulePickName: "Daily Alerts",
     notice: "",
     fileQuery: "",
     folder: "Risk",
@@ -119,7 +142,7 @@
 
   function blankUser(partial) {
     return Object.assign({
-      id: "", userType: "Federated", containUserId: false,
+      id: "", userType: "Federated", containUserId: false, catalixUserId: "",
       firstName: "", middleName: "", lastName: "", employeeType: "", specialty: "",
       employeeId: "", title: "", phone: "", mobile: "", pager: "", fax: "",
       email: "", alternateEmail: "", notes: "",
@@ -153,7 +176,7 @@
         careSetting: "Acute",
         groups: ["Front Line Users"],
         locations: [LOCATIONS[i % LOCATIONS.length]],
-        roles: [{ module: "Risk", license: "Basic Administration", role: "Risk - Front Line User", scope: "NONE", forbidden: "" }]
+        roles: [{ module: "Risk", license: "Basic Administration", role: "Risk - Front Line User", scope: "NONE", forbidden: "", description: "" }]
       });
     });
     return {
@@ -187,6 +210,41 @@
     });
   }
 
+  function scheduleMeta(name) {
+    if (SCHEDULE_META[name]) return SCHEDULE_META[name];
+    return {
+      description: "",
+      status: "Inactive",
+      lastTrigger: "",
+      firstTrigger: "",
+      timesTriggered: 0,
+      contentDistributed: 0
+    };
+  }
+
+  function scheduleEntryName(entry) {
+    return typeof entry === "string" ? entry : entry.name;
+  }
+
+  function scheduleEntryStatus(entry) {
+    if (typeof entry === "string") return scheduleMeta(entry).status;
+    return entry.status || scheduleMeta(entry.name).status;
+  }
+
+  function normalizeSchedules(list) {
+    return (list || []).map(function (entry) {
+      if (typeof entry === "string") {
+        const meta = scheduleMeta(entry);
+        return { name: entry, status: meta.status };
+      }
+      return entry;
+    });
+  }
+
+  function selectedRoleIndices() {
+    return Object.keys(ui.rolePick).filter(function (k) { return ui.rolePick[k]; }).map(Number);
+  }
+
   function routeTo(path) {
     location.hash = "#/" + path;
   }
@@ -209,7 +267,7 @@
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape") {
       if (ui.roleDraft) { ui.roleDraft = null; render(); return; }
-      if (ui.schedulePick !== "" && ui.modal === "schedule") { ui.modal = "user"; render(); return; }
+      if (ui.modal === "schedule") { ui.modal = "user"; render(); return; }
       if (ui.modal) { ui.modal = null; ui.advanced = null; render(); }
     }
   });
@@ -267,6 +325,20 @@
       if (!t.checked) delete ui.selected[t.value];
       render();
     }
+    if (t.classList.contains("role-check")) {
+      ui.rolePick[t.value] = t.checked;
+      if (!t.checked) delete ui.rolePick[t.value];
+      render();
+    }
+    if (t.id === "schedule-pick") {
+      ui.schedulePickName = t.value;
+      render();
+    }
+    if (t.classList.contains("schedule-check")) {
+      ui.schedulePick[t.value] = t.checked;
+      if (!t.checked) delete ui.schedulePick[t.value];
+      render();
+    }
   }
 
   function onClick(event) {
@@ -306,16 +378,45 @@
     else if (act === "act-as") { if (selectedIds().length === 1) { ui.modal = "actas"; render(); } }
     else if (act === "apply-locations") applyLocations();
     else if (act === "apply-actas") applyActAs();
-    else if (act === "add-role") { readUserForm(); ui.roleDraft = { module: "Risk", license: "Basic Administration", role: "Risk - File Manager", scope: "NONE", forbidden: "" }; ui.modal = "role"; render(); }
+    else if (act === "add-role") {
+      readUserForm();
+      ui.roleEditIndex = null;
+      ui.roleDraft = { module: "Risk", license: "Basic Administration", role: "Risk - File Manager", scope: "NONE", forbidden: "" };
+      ui.modal = "role";
+      render();
+    }
+    else if (act === "open-role") {
+      const picks = selectedRoleIndices();
+      if (picks.length !== 1) return;
+      readUserForm();
+      ui.roleEditIndex = picks[0];
+      ui.roleDraft = JSON.parse(JSON.stringify(ui.draft.roles[picks[0]]));
+      ui.modal = "role";
+      render();
+    }
     else if (act === "ok-role") commitRole();
-    else if (act === "cancel-role") { ui.roleDraft = null; ui.modal = "user"; render(); }
-    else if (act === "del-role") { readUserForm(); ui.draft.roles.splice(Number(id), 1); render(); }
+    else if (act === "cancel-role") { ui.roleDraft = null; ui.roleEditIndex = null; ui.modal = "user"; render(); }
+    else if (act === "del-roles") {
+      readUserForm();
+      selectedRoleIndices().sort(function (a, b) { return b - a; }).forEach(function (index) {
+        ui.draft.roles.splice(index, 1);
+      });
+      ui.rolePick = {};
+      render();
+    }
     else if (act === "add-group") addGroup();
     else if (act === "del-group") { readUserForm(); ui.draft.groups = ui.draft.groups.filter(function (g) { return g !== id; }); render(); }
-    else if (act === "add-schedule") { readUserForm(); ui.schedulePick = SCHEDULES[0]; ui.modal = "schedule"; render(); }
+    else if (act === "add-schedule") { readUserForm(); ui.schedulePickName = "Daily Alerts"; ui.modal = "schedule"; render(); }
+    else if (act === "del-schedules") {
+      readUserForm();
+      Object.keys(ui.schedulePick).filter(function (k) { return ui.schedulePick[k]; }).map(Number).sort(function (a, b) { return b - a; }).forEach(function (index) {
+        ui.draft.schedules.splice(index, 1);
+      });
+      ui.schedulePick = {};
+      render();
+    }
     else if (act === "ok-schedule") commitSchedule();
     else if (act === "cancel-schedule") { ui.modal = "user"; render(); }
-    else if (act === "del-schedule") { readUserForm(); ui.draft.schedules.splice(Number(id), 1); render(); }
     else if (act === "skip-site") { db.prefs.hideLocationPrompt = true; saveDb(); ui.modal = null; render(); }
     else if (act === "save-site") saveSite();
     else if (act === "icon") openFile(id);
@@ -333,8 +434,12 @@
   function openUser(id, isNew) {
     ui.tab = "info";
     ui.roleDraft = null;
+    ui.roleEditIndex = null;
+    ui.rolePick = {};
+    ui.schedulePick = {};
     if (isNew) ui.draft = blankUser();
     else ui.draft = JSON.parse(JSON.stringify(db.users.find(function (u) { return u.id === id; })));
+    ui.draft.schedules = normalizeSchedules(ui.draft.schedules);
     ui.draft._originalId = isNew ? "" : ui.draft.id;
     ui.modal = "user";
     render();
@@ -360,7 +465,7 @@
   function readUserForm() {
     const form = document.getElementById("user-form");
     if (!form || !ui.draft) return;
-    ["id", "userType", "firstName", "middleName", "lastName", "employeeType", "specialty", "employeeId", "title", "phone", "mobile", "pager", "fax", "email", "alternateEmail", "notes", "profileUpdateMethod", "status", "timeZone", "dashboardGroup", "iconWallTemplate", "careSetting", "regulatorySetting"].forEach(function (name) {
+    ["id", "userType", "catalixUserId", "firstName", "middleName", "lastName", "employeeType", "specialty", "employeeId", "title", "phone", "mobile", "pager", "fax", "email", "alternateEmail", "notes", "profileUpdateMethod", "status", "timeZone", "dashboardGroup", "iconWallTemplate", "careSetting", "regulatorySetting"].forEach(function (name) {
       const field = form.elements[name];
       if (field) ui.draft[name] = field.value;
     });
@@ -455,14 +560,31 @@
 
   function commitRole() {
     const form = document.getElementById("role-form");
-    ui.draft.roles.push({
+    const roleName = form.role.value;
+    const entry = {
       module: form.module.value,
       license: form.license.value,
-      role: form.role.value,
+      role: roleName,
       scope: form.scope.value,
-      forbidden: form.forbidden.value.trim()
+      forbidden: form.forbidden.value,
+      description: ROLE_DESCRIPTIONS[roleName] || ""
+    };
+    const duplicate = ui.draft.roles.some(function (existing, index) {
+      if (ui.roleEditIndex !== null && ui.roleEditIndex !== undefined && index === ui.roleEditIndex) return false;
+      return existing.role === entry.role && existing.scope === entry.scope;
     });
+    if (duplicate) {
+      ui.notice = "That role and scope combination is already assigned.";
+      ui.modal = "role";
+      render();
+      return;
+    }
+    if (ui.roleEditIndex === null || ui.roleEditIndex === undefined) ui.draft.roles.push(entry);
+    else ui.draft.roles[ui.roleEditIndex] = entry;
     ui.roleDraft = null;
+    ui.roleEditIndex = null;
+    ui.rolePick = {};
+    ui.notice = "";
     ui.modal = "user";
     ui.tab = "roles";
     render();
@@ -477,7 +599,10 @@
 
   function commitSchedule() {
     const name = document.getElementById("schedule-pick").value;
-    if (ui.draft.schedules.indexOf(name) < 0) ui.draft.schedules.push(name);
+    const meta = scheduleMeta(name);
+    if (!ui.draft.schedules.some(function (entry) { return scheduleEntryName(entry) === name; })) {
+      ui.draft.schedules.push({ name: name, status: meta.status });
+    }
     ui.modal = "user";
     ui.tab = "schedules";
     render();
@@ -787,16 +912,24 @@
     const tabBar = '<div class="tabs">' + tabs.map(function (tab) {
       return '<button type="button" data-act="tab" data-tab="' + tab[0] + '"' + (ui.tab === tab[0] ? ' class="active"' : "") + ">" + tab[1] + "</button>";
     }).join("") + "</div>";
-    return wrap(title,
+    return '<div class="backdrop"><section class="modal modal-wide" role="dialog" aria-modal="true"><header><h2>' + title +
+      '</h2><button class="x" data-act="close" aria-label="Close">×</button></header><div class="body">' +
       (ui.notice ? '<div class="error">' + esc(ui.notice) + "</div>" : "") +
-      '<p class="hint">Fields marked with an asterisk (<span class="req">*</span>) are required.</p><form id="user-form">' +
-      '<div class="form-grid">' +
-      field("User ID *", '<input name="id" value="' + esc(u.id) + '" />', "span-2") +
-      field("User Type", '<select name="userType">' + options(["Federated", "Local"], u.userType) + "</select>") +
-      field("Last Login", '<input value="' + esc(u.lastLogin) + '" disabled />', "span-2") +
-      '<label class="field toggle"><input name="containUserId" type="checkbox"' + (u.containUserId ? " checked" : "") + " /> Contain user ID</label>" +
-      "</div>" + tabBar + tabBody(u) + "</form>",
-      '<button class="btn" data-act="close">Exit</button><button class="btn primary" data-act="save-user">Save</button>');
+      '<p class="hint">Fields labeled with an asterisk(<span class="req">*</span>) are required.</p><form id="user-form">' +
+      userIdentityBand(u) + tabBar + tabBody(u) + '</form></div><footer><button class="btn" data-act="close">Exit</button><button class="btn primary" data-act="save-user">Save</button></footer></section></div>';
+  }
+
+  function userIdentityBand(u) {
+    const extra = ui.tab === "info"
+      ? field("User Type", '<select name="userType">' + options(["Federated", "Local"], u.userType) + "</select>") +
+        '<label class="field toggle span-2"><input name="containUserId" type="checkbox"' + (u.containUserId ? " checked" : "") + " /> Contain user ID</label>"
+      : "";
+    return '<div class="form-grid user-id-band">' +
+      field("User ID *", '<input name="id" value="' + esc(u.id) + '" />') +
+      field("Last Login", '<input value="' + esc(u.lastLogin) + '" disabled />') +
+      field("Catalix User ID", '<input name="catalixUserId" value="' + esc(u.catalixUserId || u.employeeId || "") + '" />') +
+      extra +
+      "</div>";
   }
 
   function tabBody(u) {
@@ -818,10 +951,20 @@
         "</div>";
     }
     if (ui.tab === "roles") {
-      const rows = u.roles.length ? u.roles.map(function (role, index) {
-        return '<div class="row"><span>' + esc(role.module + " · " + role.role + " · " + role.scope) + '</span><button type="button" data-act="del-role" data-id="' + index + '">Delete</button></div>';
-      }).join("") : '<div class="row"><span class="hint">No Assigned Role</span></div>';
-      return '<button class="btn" type="button" data-act="add-role">Add</button><div class="list-block" style="margin-top:10px">' + rows + "</div>";
+      const picks = selectedRoleIndices();
+      const openDisabled = picks.length !== 1;
+      const delDisabled = !picks.length;
+      const body = u.roles.length ? u.roles.map(function (role, index) {
+        const desc = role.description || ROLE_DESCRIPTIONS[role.role] || "";
+        return "<tr><td><input class=\"role-check\" type=\"checkbox\" value=\"" + index + "\"" + (ui.rolePick[index] ? " checked" : "") + " /></td>" +
+          "<td>" + esc(role.role) + "</td><td>" + esc(desc) + "</td><td>" + esc(role.scope) + "</td><td>" + esc(role.forbidden || "") + "</td></tr>";
+      }).join("") : '<tr><td colspan="5" class="empty">No Assigned Role</td></tr>';
+      return '<div class="role-toolbar">' +
+        '<button class="btn primary-outline" type="button" data-act="add-role">Add</button>' +
+        '<button class="btn" type="button" data-act="open-role"' + (openDisabled ? " disabled" : "") + ">Open</button>" +
+        '<button class="btn danger-outline" type="button" data-act="del-roles"' + (delDisabled ? " disabled" : "") + ">Delete</button></div>" +
+        '<div class="table-card inner-table"><table class="grid roles-grid"><thead><tr><th></th><th>Role</th><th>Role Description</th><th>Scope</th><th>Forbidden List</th></tr></thead><tbody>' +
+        body + "</tbody></table></div>";
     }
     if (ui.tab === "groups") {
       const rows = u.groups.length ? u.groups.map(function (group) {
@@ -840,10 +983,16 @@
       }).join("") + "</div>";
     }
     if (ui.tab === "schedules") {
-      const rows = u.schedules.length ? u.schedules.map(function (name, index) {
-        return '<div class="row"><span>' + esc(name) + '</span><button type="button" data-act="del-schedule" data-id="' + index + '">Remove</button></div>';
-      }).join("") : '<div class="row"><span class="hint">No Scheduled Items</span></div>';
-      return '<button class="btn" type="button" data-act="add-schedule">Add to Schedule</button><div class="list-block" style="margin-top:10px">' + rows + "</div>";
+      const picked = Object.keys(ui.schedulePick).filter(function (k) { return ui.schedulePick[k]; }).length;
+      const rows = u.schedules.length ? u.schedules.map(function (entry, index) {
+        return "<tr><td><input class=\"schedule-check\" type=\"checkbox\" value=\"" + index + "\"" + (ui.schedulePick[index] ? " checked" : "") + " /></td>" +
+          "<td>" + esc(scheduleEntryName(entry)) + "</td><td>" + esc(scheduleEntryStatus(entry)) + "</td></tr>";
+      }).join("") : '<tr><td colspan="3" class="empty">No Schedule Items</td></tr>';
+      return '<div class="role-toolbar">' +
+        '<button class="btn primary-outline" type="button" data-act="add-schedule">Add To Schedule</button>' +
+        '<button class="btn danger-outline" type="button" data-act="del-schedules"' + (picked ? "" : " disabled") + ">Delete</button></div>" +
+        '<div class="table-card inner-table"><table class="grid"><thead><tr><th></th><th>Schedule Name</th><th>Status</th></tr></thead><tbody>' +
+        rows + "</tbody></table></div>";
     }
     return '<div class="form-grid">' +
       field("First Name *", '<input name="firstName" value="' + esc(u.firstName) + '" />') +
@@ -866,20 +1015,37 @@
   function roleModal() {
     const role = ui.roleDraft;
     const pack = ROLE_OPTIONS[role.module];
-    return '<div class="backdrop top"><section class="modal narrow" role="dialog"><header><h2>User Role Info</h2><button class="x" data-act="cancel-role">×</button></header><form id="role-form" class="body"><p class="hint">Please specify a module first. Then provide details about their role in the module.</p><div class="stack">' +
+    const licenseNote = role.module === "Risk"
+      ? '<p class="hint">Risk module has unlimited Basic Administration licenses.</p>'
+      : "";
+    return '<div class="backdrop top"><section class="modal narrow" role="dialog"><header><h2>User Role Info</h2><button class="x" data-act="cancel-role">×</button></header><form id="role-form" class="body">' +
+      '<p class="hint">Please specify a module first:</p><p class="hint">Then provide details about their role in the module:</p><div class="stack">' +
       field("Module", '<select name="module" id="role-module">' + options(Object.keys(ROLE_OPTIONS), role.module) + "</select>") +
       field("License", '<select name="license">' + options(pack.licenses, role.license) + "</select>") +
       field("Role", '<select name="role">' + options(pack.roles, role.role) + "</select>") +
       field("Scope", '<select name="scope">' + options(SCOPES, role.scope) + "</select>") +
-      field("Forbidden Fields", '<input name="forbidden" value="' + esc(role.forbidden) + '" />') +
+      field("Forbidden Fields", '<select name="forbidden">' + options(FORBIDDEN_FIELDS, role.forbidden || "") + "</select>") +
+      licenseNote +
       "</div></form><footer><button class=\"btn\" data-act=\"cancel-role\" type=\"button\">Cancel</button><button class=\"btn primary\" data-act=\"ok-role\" type=\"button\">OK</button></footer></section></div>";
   }
 
   function scheduleModal() {
-    return wrap("Add user to Schedule",
-      field("Schedule Name", '<select id="schedule-pick">' + options(SCHEDULES, ui.schedulePick || SCHEDULES[0]) + "</select>") +
-      '<p class="hint">Choose the alert or report schedule for this user.</p>',
-      '<button class="btn" data-act="cancel-schedule">Cancel</button><button class="btn primary" data-act="ok-schedule">OK</button>', true, "top");
+    const pick = ui.schedulePickName || "Daily Alerts";
+    const meta = scheduleMeta(pick);
+    return '<div class="backdrop top"><section class="modal schedule-modal" role="dialog"><header><h2>Add user to Schedule</h2><span class="help-dot" title="Help">?</span><button class="x" data-act="cancel-schedule">×</button></header><div class="body">' +
+      field("Schedule Name", '<select id="schedule-pick">' + options(SCHEDULES, pick) + "</select>") +
+      '<div class="schedule-detail">' +
+      detailRow("Schedule Description", meta.description) +
+      detailRow("Schedule Status", meta.status) +
+      detailRow("Last Trigger Date", meta.lastTrigger) +
+      detailRow("First Trigger Date", meta.firstTrigger) +
+      detailRow("# of Time Triggered", meta.timesTriggered) +
+      detailRow("Content Distributed", meta.contentDistributed) +
+      "</div></div><footer><button class=\"btn\" data-act=\"cancel-schedule\">Cancel</button><button class=\"btn primary\" data-act=\"ok-schedule\">OK</button></footer></section></div>";
+  }
+
+  function detailRow(label, value) {
+    return '<div class="label">' + esc(label) + '</div><div class="value">' + esc(value) + "</div>";
   }
 
   function advancedModal() {

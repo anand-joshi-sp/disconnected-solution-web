@@ -112,6 +112,17 @@ a { color: var(--blue); }
 .btn.primary:hover { background: var(--blue-dark); }
 .btn.ghost { background: #fff; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.primary-outline { border-color: var(--blue); color: var(--blue); background: #fff; }
+.btn.danger-outline { border-color: #d92d20; color: #b42318; background: #fff; }
+.role-toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
+.inner-table { margin-top: 4px; }
+.inner-table table.grid th, .inner-table table.grid td { font-size: 12px; padding: 7px 8px; vertical-align: top; }
+.roles-grid td:nth-child(3) { max-width: 360px; line-height: 1.35; }
+.schedule-detail {
+  display: grid; grid-template-columns: 170px 1fr; gap: 8px 12px; margin-top: 12px; align-items: start;
+}
+.schedule-detail .label { color: #475467; font-size: 12px; padding-top: 2px; }
+.schedule-detail .value { color: #1f2933; font-size: 13px; min-height: 18px; }
 .search-wrap { display: flex; align-items: center; }
 .search-wrap input, .field input, .field select, .field textarea {
   border: 1px solid var(--line-strong);
@@ -183,11 +194,18 @@ table.grid a:hover { text-decoration: underline; }
   border-radius: 8px; box-shadow: var(--shadow);
   display: flex; flex-direction: column; max-height: calc(100vh - 96px);
 }
+.modal.modal-wide { width: min(920px, 100%); }
+.modal.schedule-modal { width: min(500px, 100%); }
 .modal.narrow { width: min(520px, 100%); }
 .modal header, .modal footer {
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 16px;
 }
+.modal header .help-dot {
+  margin-left: auto; margin-right: 8px; width: 18px; height: 18px; border-radius: 50%;
+  border: 1px solid #98a2b3; color: #667085; display: grid; place-items: center; font-size: 11px;
+}
+.user-id-band { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 .modal header { border-bottom: 1px solid var(--line); }
 .modal header h2 { margin: 0; font-size: 16px; font-weight: 650; }
 .modal footer { border-top: 1px solid var(--line); justify-content: flex-end; gap: 8px; }
