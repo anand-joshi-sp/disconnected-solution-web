@@ -1,0 +1,10 @@
+# Static site for Render.
+# In the Render dashboard: New > Static Site, set Root Directory to rl-solutions-app.
+# Build command: echo static
+# Publish directory: .
+services:
+  - type: web
+    name: rl-solutions
+    runtime: static
+    buildCommand: echo static
+    staticPublishPath: .
