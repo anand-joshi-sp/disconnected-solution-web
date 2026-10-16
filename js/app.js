@@ -1,6 +1,6 @@
 (function () {
-  const STORAGE_KEY = "rl-solutions-demo-v1";
-  const SESSION_KEY = "rl-solutions-session";
+  const STORAGE_KEY = "disconnected-solutions-demo-v1";
+  const SESSION_KEY = "disconnected-solutions-session";
 
   const NAV = [
     ["patients", "Patients"],
@@ -554,7 +554,7 @@
     const acting = session && session.actAs ? '<div class="banner"><span>Acting as ' + esc(session.actAs) + '</span><button class="btn" data-act="end-actas">Exit</button></div>' : "";
     return '' +
       '<header class="app-header">' +
-        '<a class="brand" href="#/home" data-act="nav" data-to="home">' + logo() + '<span class="brand-name">Risk &amp; Safety</span></a>' +
+        '<a class="brand" href="#/home" data-act="nav" data-to="home">' + logo() + '<span class="brand-name">Disconnected Solutions</span></a>' +
         '<button class="home-pill' + (route === "home" ? " active" : "") + '" data-act="nav" data-to="home">Home</button>' +
         '<nav class="nav-links">' + NAV.map(function (item) {
           return '<a href="#/' + item[0] + '" data-act="nav" data-to="' + item[0] + '"' + (route === item[0] ? ' class="active"' : "") + ">" + item[1] + "</a>";
@@ -581,7 +581,7 @@
   function loginHtml() {
     return '<div class="login-wrap"><form class="login-card" id="login-form">' +
       logo().replace("white", "#114743") +
-      "<h1>Risk &amp; Safety</h1><p class=\"sub\">Sign in to the administration portal.</p>" +
+      "<h1>Disconnected Solutions</h1><p class=\"sub\">Sign in to the Disconnected Solutions portal.</p>" +
       (ui.notice ? '<div class="error">' + esc(ui.notice) + "</div>" : "") +
       '<div class="stack"><label class="field">User ID<input name="username" autocomplete="username" required /></label>' +
       '<label class="field">Password<input name="password" type="password" autocomplete="current-password" required /></label>' +

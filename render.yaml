@@ -1,10 +1,11 @@
-# Static site for Render.
-# In the Render dashboard: New > Static Site, set Root Directory to rl-solutions-app.
-# Build command: echo static
-# Publish directory: .
+# Match the working user-admin-demo Render blueprint (static web, no build step).
 services:
   - type: web
-    name: rl-solutions
+    name: disconnected-solutions
     runtime: static
-    buildCommand: echo static
+    buildCommand: ""
     staticPublishPath: .
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
