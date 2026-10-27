@@ -35,3 +35,6 @@ Repo layout: `index.html`, `css/`, `js/` at the **repository root** (not in a su
 
 - User: `admin`
 - Password: `admin123`
+
+The demo seeds 1,000 users. The storage version is updated with the seed, so existing browsers receive
+the complete dataset automatically after deployment.

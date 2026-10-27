@@ -1,6 +1,7 @@
 (function () {
-  const STORAGE_KEY = "disconnected-solutions-demo-v1";
+  const STORAGE_KEY = "disconnected-solutions-demo-v2";
   const SESSION_KEY = "disconnected-solutions-session";
+  const SEED_USER_COUNT = 1000;
 
   const NAV = [
     ["patients", "Patients"],
@@ -156,19 +157,21 @@
 
   function seed() {
     const titles = ["Physician", "Nurse", "Security Officer", "Virtual Contractor", "Nursing Director", "Physician Assistant"];
-    const users = FIRST.map((first, i) => {
-      const last = LAST[i];
+    const users = Array.from({ length: SEED_USER_COUNT }, function (_, i) {
+      const first = FIRST[i % FIRST.length];
+      const last = i < LAST.length ? LAST[i] : LAST[(i * 7 + Math.floor(i / FIRST.length)) % LAST.length];
+      const suffix = i < FIRST.length ? "" : "." + String(i + 1).padStart(4, "0");
       const title = titles[i % titles.length];
       const status = i % 17 === 0 ? "Inactive" : i % 23 === 0 ? "Locked Out" : "Active";
       return blankUser({
-        id: (first + "." + last).toUpperCase() + "@demo.local",
+        id: (first + "." + last + suffix).toUpperCase() + "@demo.local",
         firstName: first,
         lastName: last,
         title: title,
         employeeType: title === "Nurse" ? "Advanced Practice Nurse" : title,
         specialty: title === "Physician" ? SPECIALTIES[(i % (SPECIALTIES.length - 1)) + 1] : "",
         employeeId: String(100100 + i * 17),
-        email: (first + "." + last).toLowerCase() + "@demo.local",
+        email: (first + "." + last + suffix).toLowerCase() + "@demo.local",
         status: status,
         dashboardGroup: i % 5 === 0 ? "Risk and Feedback Managers" : "None",
         iconWallTemplate: i % 4 === 0 ? "System Template for all Risk Forms" : "None",
